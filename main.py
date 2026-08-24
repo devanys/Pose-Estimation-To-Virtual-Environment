@@ -12,14 +12,12 @@ WINDOW_MAIN = "YOLO Gesture + MediaPipe PyBullet Avatar"
 SCALE = 1.2
 SMOOTHING = 0.35
 
-# Inisialisasi PyBullet
 p.connect(p.GUI)
 p.setAdditionalSearchPath(pybullet_data.getDataPath())
 p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=35, cameraPitch=-20, cameraTargetPosition=[0, 0, 0.5])
 p.setGravity(0, 0, -9.81)
 p.loadURDF("plane.urdf")
 
-# Fungsi pembentuk objek 3D
 def create_capsule(radius, height, color):
     visual_shape = p.createVisualShape(shapeType=p.GEOM_CAPSULE, radius=radius, length=height, rgbaColor=color)
     collision_shape = p.createCollisionShape(shapeType=p.GEOM_CAPSULE, radius=radius, height=height)
@@ -31,7 +29,6 @@ def create_sphere(radius, color):
     body_id = p.createMultiBody(baseMass=0, baseVisualShapeIndex=visual_shape)
     return body_id
 
-# Membuat bagian tubuh avatar
 HEAD = create_sphere(0.08, [0.9, 0.7, 0.1, 1])
 TORSO = create_capsule(0.09, 0.25, [0.1, 0.5, 0.2, 1])
 LEFT_UPPER_ARM = create_capsule(0.035, 0.18, [0.1, 0.2, 0.8, 1])
@@ -51,7 +48,6 @@ RIGHT_HIP_MARKER = create_sphere(0.05, [0.2, 0.2, 0.8, 1])
 LEFT_KNEE_MARKER = create_sphere(0.045, [0.8, 0.1, 0.1, 1])
 RIGHT_KNEE_MARKER = create_sphere(0.045, [0.8, 0.1, 0.1, 1])
 
-# Fungsi geometri kapsul
 def set_body_between(body_id, start, end):
     start = np.array(start, dtype=np.float32)
     end = np.array(end, dtype=np.float32)
@@ -83,13 +79,10 @@ def smooth_position(name, position):
     previous_positions[name] = previous_positions[name] * (1.0 - SMOOTHING) + position * SMOOTHING
     return previous_positions[name]
 
-# Inisialisasi MediaPipe Pose
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
-# Inisialisasi YOLO (Menggunakan model dasar yolov8n)
-# Catatan: Anda bisa mengganti 'yolov8n.pt' dengan model gesture custom Anda (misal: 'best.pt')
-yolo_model = YOLO('yolov8n.pt') 
+yolo_model = YOLO('yolov26n.pt') 
 
 cap = cv2.VideoCapture(CAMERA_ID)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -122,28 +115,18 @@ with mp_pose.Pose(static_image_mode=False, model_complexity=1, smooth_landmarks=
         
         frame = cv2.flip(frame, 1)
         
-        # ==========================================
-        # 1. YOLO DETECTION (Gesture/Object Detection)
-        # ==========================================
-        # Menjalankan YOLO pada frame
         yolo_results = yolo_model(frame, verbose=False)
         
-        # Menggambar bounding box YOLO pada frame
         annotated_frame = yolo_results[0].plot()
         
-        # Mengambil label gesture/objek teratas (jika ada)
         gesture_text = "None"
         if len(yolo_results[0].boxes) > 0:
             top_box = yolo_results[0].boxes[0]
             class_id = int(top_box.cls[0])
             gesture_text = yolo_model.names[class_id]
             
-        # Menampilkan teks deteksi YOLO di layar
         cv2.putText(annotated_frame, f"YOLO Detection: {gesture_text}", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-        # ==========================================
-        # 2. MEDIAPIPE POSE TRACKING
-        # ==========================================
         rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
         rgb.flags.writeable = False
         results = pose.process(rgb)
@@ -164,7 +147,7 @@ with mp_pose.Pose(static_image_mode=False, model_complexity=1, smooth_landmarks=
             left_ankle = landmark_to_world(landmarks[mp_pose.PoseLandmark.LEFT_ANKLE])
             right_ankle = landmark_to_world(landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE])
             
-            # Smoothing
+
             left_shoulder = smooth_position("left_shoulder", left_shoulder)
             right_shoulder = smooth_position("right_shoulder", right_shoulder)
             left_elbow = smooth_position("left_elbow", left_elbow)
@@ -177,8 +160,7 @@ with mp_pose.Pose(static_image_mode=False, model_complexity=1, smooth_landmarks=
             right_knee = smooth_position("right_knee", right_knee)
             left_ankle = smooth_position("left_ankle", left_ankle)
             right_ankle = smooth_position("right_ankle", right_ankle)
-            
-            # Update PyBullet Avatar
+
             body_center = (left_hip + right_hip) / 2.0
             shoulder_center = (left_shoulder + right_shoulder) / 2.0
             hip_center = (left_hip + right_hip) / 2.0
@@ -216,16 +198,12 @@ with mp_pose.Pose(static_image_mode=False, model_complexity=1, smooth_landmarks=
                                      mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=2, circle_radius=3), 
                                      mp_drawing.DrawingSpec(color=(255, 255, 255), thickness=2))
         
-        # ==========================================
-        # 3. RENDER GABUNGAN
-        # ==========================================
         pybullet_frame = capture_pybullet_frame()
         pybullet_frame = cv2.resize(pybullet_frame, (annotated_frame.shape[1] // 2, annotated_frame.shape[0] // 2))
         frame_resized = cv2.resize(annotated_frame, (annotated_frame.shape[1] // 2, annotated_frame.shape[0] // 2))
         
         combined_frame = np.hstack((frame_resized, pybullet_frame))
-        
-        # Text UI
+
         cv2.putText(combined_frame, "Camera + YOLO", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         cv2.putText(combined_frame, "PyBullet Avatar", (frame_resized.shape[1] + 10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         
