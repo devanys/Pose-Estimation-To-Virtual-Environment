@@ -193,7 +193,6 @@ with mp_pose.Pose(static_image_mode=False, model_complexity=1, smooth_landmarks=
             for marker_id, position in marker_positions.items():
                 p.resetBasePositionAndOrientation(marker_id, position.tolist(), [0, 0, 0, 1])
             
-            # Gambar garis MediaPipe di atas frame YOLO
             mp_drawing.draw_landmarks(annotated_frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS, 
                                      mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=2, circle_radius=3), 
                                      mp_drawing.DrawingSpec(color=(255, 255, 255), thickness=2))
